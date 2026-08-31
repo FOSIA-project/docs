@@ -3,5 +3,33 @@ site_name: FOSIA Documentation
 theme:
   name: material
 
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
 nav:
   - Home: index.md
+
+  - Getting Started:
+      - Overview: getting-started/index.md
+      - Installation: getting-started/installation.md
+
+  - User Guide:
+      - Overview: user-guide/index.md
+      - Configuration: user-guide/configuration.md
+      - Commands: user-guide/commands.md
+
+  - Developer Guide:
+      - Overview: developer-guide/index.md
+      - Architecture: developer-guide/architecture.md
+      - Core: developer-guide/core.md
+      - Client: developer-guide/client.md
+      - Server: developer-guide/server.md
+
+  - Technical:
+      - Overview: technical/index.md
+      
