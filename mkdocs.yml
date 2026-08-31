@@ -1,5 +1,7 @@
 site_name: FOSIA Documentation
 
+docs_dir: .
+
 theme:
   name: material
 
