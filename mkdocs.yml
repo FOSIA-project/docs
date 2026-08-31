@@ -5,9 +5,3 @@ theme:
 
 nav:
   - Home: index.md
-  - User Guide:
-      - Overview: user-guide/index.md
-  - Developer Guide:
-      - Overview: developer-guide/index.md
-  - Technical:
-      - Overview: technical/index.md
