@@ -11,6 +11,8 @@ theme:
     - search.suggest
     - search.highlight
     - content.code.copy
+markdown_extensions:
+  - admonition
 nav:
   - Home: index.md
 
@@ -31,5 +33,31 @@ nav:
       - Server: developer-guide/server.md
 
   - Technical:
-      - Overview: technical/index.md
-      
+     - Overview: technical/index.md
+
+     - Architecture:
+         - Overview: technical/architecture/index.md
+         - System Architecture: technical/architecture/system.md
+         - Data Flow: technical/architecture/data-flow.md
+
+     - Client:
+         - Overview: technical/client/index.md
+         - Microphone: technical/client/microphone.md
+         - Wake Word Detection: technical/client/wwd.md
+         - Signaling: technical/client/signaling.md
+         - WebRTC: technical/client/webrtc.md
+
+     - Server:
+         - Overview: technical/server/index.md
+         - Signaling: technical/server/signaling.md
+         - WebRTC: technical/server/webrtc.md
+         - Audio Queue: technical/server/audio-queue.md
+         - Speech-to-Text: technical/server/stt.md
+
+     - Error Handling:
+         - Overview: technical/error-handling/index.md
+
+     - Testing:
+         - Overview: technical/testing/index.md
+
+     

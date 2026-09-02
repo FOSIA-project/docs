@@ -1,2 +1,2 @@
 !!! warning
-    Comming soon
+    Coming soon
