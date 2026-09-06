@@ -49,7 +49,7 @@ nav:
          - WebRTC: technical/communication/webrtc.md
      - Server:
          - Overview: technical/server/index.md
-         - Speech-to-Text: technical/server/stt.md
+         - Speech-to-Text (Google): technical/server/stt.md
 
      - Error Handling:
          - Overview: technical/error-handling/index.md
