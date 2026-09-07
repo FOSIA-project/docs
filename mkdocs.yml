@@ -52,7 +52,7 @@ nav:
          - Speech-to-Text (Google): technical/server/stt.md
 
      - Error Handling:
-         - Overview: technical/error-handling/index.md
+         - Error Handling: technical/error-handling/index.md
 
      - Testing:
          - Overview: technical/testing/index.md
