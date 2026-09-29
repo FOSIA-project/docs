@@ -37,7 +37,18 @@ nav:
 
      - Architecture:
          - System Architecture: technical/architecture/system.md
- 
+
+     - Framework:
+         - Hub:
+             - Overview: technical/framework/hub/index.md
+             - Configuration: technical/framework/hub/configuration.md
+             - Modules and sessions: technical/framework/hub/modules.md
+             - Peers: technical/framework/hub/peers.md
+         - Module SDK:
+             - Overview: technical/framework/module-sdk/index.md
+             - Writing a module: technical/framework/module-sdk/writing-a-module.md
+             - Data and sessions: technical/framework/module-sdk/data-and-sessions.md
+
      - Client:
          - Overview: technical/client/index.md
          - Microphone: technical/client/microphone.md
