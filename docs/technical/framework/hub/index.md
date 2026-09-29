@@ -5,19 +5,19 @@ The hub is the **control plane** for a FOSIA pipeline. Modules register with it,
 Data moves on separate sockets between neighboring modules, using ipc-lib. The hub only exchanges control messages: register, listen, sessions, and routing updates.
 
 ```text
-                         control (Unix socket)
-        ┌──────────────────────────────────────────────────┐
-        │                                                  │
-        ▼                                                  │
-   ┌──────────┐   data    ┌──────────┐   data    ┌─────────┴──┐
-   │ audio-in │ ────────► │   vad    │ ────────► │  wakeword  │
-   │  source  │           │ fan-out  │           │  default   │
-   │          │           │          │           │  creator   │
-   └──────────┘           └──────────┘           └────────────┘
-        │                      │                        │
-        └──────────────────────┴────────────────────────┘
-                 each process talks to the hub
-                 the hub never sees the PCM
+                      control (Unix socket)
+         +-----------------------+-----------------------+
+         |                       |                       |
+         v                       v                       v
+   +-----+------+   data   +-----+------+   data   +-----+------+
+   |  audio-in  | -------> |    vad     | -------> |  wakeword  |
+   |   source   |          |  fan-out   |          |  default   |
+   |            |          |            |          |  creator   |
+   +-----+------+          +-----+------+          +-----+------+
+         |                       |                       |
+         +-----------------------+-----------------------+
+                   each process talks to the hub
+                    the hub never sees the PCM
 ```
 
 By default, wake word is the session creator. VAD sits between the source and that creator: it listens and fans out, and it does not open a session. Modules in that gap might attach flow events to the frames they forward. The hub does not read those fields.
