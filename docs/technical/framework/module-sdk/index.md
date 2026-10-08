@@ -107,6 +107,29 @@ reply = await self.send(Message(type="ping", data={"n": 1}))
 
 The matching hub handler is `async (module, msg)`. A handler registered for this module's name wins over the handler for every module. See [Modules and sessions](../hub/modules.md#overrides-and-handlers).
 
+## Receiving a hub message
+
+The hub sends a control message with `hub.modules[name].send()` once this module is `ready`. This process runs the handler registered with `on` for that type and writes the reply. Register the handler in `on_init`, so it is in place before `ready()`.
+
+```python
+class Wakeword(Module):
+    async def on_init(self):
+        self.on("ping", self.on_ping)
+        return True
+
+    async def on_ping(self, msg):
+        return {"echo": (msg.data or {}).get("n")}
+```
+
+| Hub `send()` returns | Meaning |
+| --- | --- |
+| `Message` with `type="ack"` | Handler returned a dict. The dict is `reply.data` |
+| `Message` with `type="nack"` | Handler returned `False`, raised, or no handler is registered (`data["error"]` is `unhandled`) |
+| Other `Message` | Handler returned a `Message`. This module fills `reply_to` when the handler left it empty |
+| `None` | Timed out, the control socket is down, or this module is not `ready` on the hub |
+
+`on` replaces the handler for that type, including a built-in. Leave `listen`, `add-dests`, `add-sessions`, `delete-data`, and `remove-session` in place unless you are extending the handshake. See [Sending to a module](../hub/modules.md#sending-to-a-module).
+
 ## Where to go next
 
 - [Writing a module](writing-a-module.md) — source, session creator, and downstream hops

@@ -8,7 +8,7 @@ connected ──register──► registered ──listen──► listening ─
                               └── source skips listen ──► ready
 ```
 
-Public `module.send(msg)` is allowed only in `ready`. It waits up to 5 seconds for an ack or reply and returns `None` on timeout. The register handshake uses an internal send that does not check `ready`, because the module is not ready yet.
+Public `module.send(msg)` is allowed only in `ready`. It waits up to 5 seconds for an ack or reply and returns `None` on timeout. That is how the hub sends a control message to one module. The register handshake uses an internal send that does not check `ready`, because the module is not ready yet. See [Sending to a module](#sending-to-a-module).
 
 ## Register
 
@@ -111,3 +111,36 @@ ack / nack / reply      →  the Message send() returns
 A handler is `async (module, msg)`. Return a dict to ack with that data, `False` to nack, a `Message` to send as the reply, or `ANSWERED` if the handler already wrote the reply. An unknown type is nacked with `unhandled`. A handler that raises is nacked with the exception text. `send()` returns `None` on timeout (5 seconds) or when the module is not `ready`.
 
 Built-in types are `register`, `ready`, `create-session`, `active-session`, and `finish-session`. Registering `on` for one of those types replaces that built-in for the modules it covers. The module side of `send()` is in [Sending to a hub handler](../module-sdk/index.md#sending-to-a-hub-handler).
+
+## Sending to a module
+
+`hub.modules["wakeword"]` is the live connection after that module has registered. The name is absent until then, and after the module disconnects. `send()` is allowed only in `ready`. It waits up to 5 seconds for the module's reply.
+
+```python
+from ipc_lib import Message
+
+reply = await hub.modules["wakeword"].send(Message(type="ping", data={"n": 1}))
+```
+
+The module handles that type with `on`. The handler's return value is the reply `send()` is waiting for.
+
+```python
+async def on_ping(msg):
+    return {"echo": (msg.data or {}).get("n")}
+
+self.on("ping", on_ping)
+```
+
+```text
+hub.modules["wakeword"].send(Message type=ping)
+        │
+        ▼
+module.on("ping")  →  handler(msg)
+        │
+        ▼
+ack / nack / reply  →  the Message send() returns
+```
+
+A handler is `async (msg)`. Return a dict to ack with that data, `False` to nack, a `Message` to send as the reply, or `ANSWERED` if the handler already wrote the reply. An unknown type is nacked with `unhandled`. A handler that raises is nacked with the exception text. `send()` returns `None` on timeout (5 seconds), when the module is not `ready`, or when the control socket is down.
+
+Built-in types the hub already sends this way are `listen`, `add-dests`, `add-sessions`, `delete-data`, and `remove-session`. Registering `on` for one of those replaces that built-in. The module side is in [Receiving a hub message](../module-sdk/index.md#receiving-a-hub-message).
