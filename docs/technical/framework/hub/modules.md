@@ -83,11 +83,31 @@ Disconnect does not remove sessions, including the creator's. The hub forgets th
 
 `set_session_dest(session_id, module_name, dest)` pins that module's next hop for one session. `dest` may be `None`, which makes that hop a sink. Fan-out modules get a fresh `add-dests`. Session modules get a one-entry `add-sessions`.
 
-Inbound types are handled by `hub.modules.on`:
+A ready module sends a control message with `send()`. The hub looks up `msg.type` and runs that handler. The handler's return value is the reply `send()` is waiting for.
 
 ```python
-hub.modules.on("create-session", handler)          # every module
-hub.modules.on("ready", handler, name="wakeword")  # this name wins
+async def on_ping(module, msg):
+    return {"echo": (msg.data or {}).get("n"), "name": module.name}
+
+hub.modules.on("ping", on_ping)                        # every module
+hub.modules.on("ping", on_ping, name="wakeword")       # this name wins
 ```
 
-A handler is `async (module, msg)`. Return a dict to ack with that data, `False` to nack, a `Message` to send as the reply, or `ANSWERED` if the handler already wrote the reply. An unknown type is nacked with `unhandled`. Built-in types are `register`, `ready`, `create-session`, `active-session`, and `finish-session`.
+```python
+# inside the module, after ready()
+reply = await self.send(Message(type="ping", data={"n": 1}))
+```
+
+```text
+module.send(Message type=ping)
+        │
+        ▼
+hub.modules.on("ping")  →  handler(module, msg)
+        │
+        ▼
+ack / nack / reply      →  the Message send() returns
+```
+
+A handler is `async (module, msg)`. Return a dict to ack with that data, `False` to nack, a `Message` to send as the reply, or `ANSWERED` if the handler already wrote the reply. An unknown type is nacked with `unhandled`. A handler that raises is nacked with the exception text. `send()` returns `None` on timeout (5 seconds) or when the module is not `ready`.
+
+Built-in types are `register`, `ready`, `create-session`, `active-session`, and `finish-session`. Registering `on` for one of those types replaces that built-in for the modules it covers. The module side of `send()` is in [Sending to a hub handler](../module-sdk/index.md#sending-to-a-hub-handler).

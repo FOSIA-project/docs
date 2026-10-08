@@ -84,9 +84,28 @@ The control connection retries on its own, from 0.2 seconds up to 5 seconds, unt
 
 If you override `on_run`, call `await self.ready()` before you expect `on_data`. Inbound frames sit on the data socket until the local ready flag is set. `ready()` waits until a required listen socket is up, then awaits `on_ready()`.
 
-`on(type, handler)` replaces the handler for one control type. The handler is `async (msg)`. Return a dict to ack, `False` to nack, a `Message` to send as the reply, or `ANSWERED` if you already wrote the reply.
+`on(type, handler)` replaces the handler for one control type the hub sends to this module. The handler is `async (msg)`. Return a dict to ack, `False` to nack, a `Message` to send as the reply, or `ANSWERED` if you already wrote the reply.
 
 The built-in control types are `listen`, `add-dests`, `add-sessions`, `delete-data`, and `remove-session`. Leave those in place unless you are extending the handshake.
+
+## Sending to a hub handler
+
+After `ready()`, `send()` delivers a control message to the hub. The hub runs the handler registered with `hub.modules.on` for that type and writes the reply. `send()` waits up to 5 seconds and returns that reply.
+
+```python
+from ipc_lib import Message
+
+reply = await self.send(Message(type="ping", data={"n": 1}))
+```
+
+| `send()` returns | Meaning |
+| --- | --- |
+| `Message` with `type="ack"` | Handler returned a dict. The dict is `reply.data` |
+| `Message` with `type="nack"` | Handler returned `False`, raised, or no handler is registered (`data["error"]` is `unhandled`) |
+| Other `Message` | Handler returned a `Message`. The hub fills `reply_to` when the handler left it empty |
+| `None` | Timed out, the control socket is down, or `ready()` has not finished |
+
+The matching hub handler is `async (module, msg)`. A handler registered for this module's name wins over the handler for every module. See [Modules and sessions](../hub/modules.md#overrides-and-handlers).
 
 ## Where to go next
 

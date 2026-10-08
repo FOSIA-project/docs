@@ -62,6 +62,35 @@ A frame is a small JSON object, not an ipc-lib `Message`:
 
 Replies add `reply_to` set to the request `id`. The only built-in type is `hello`.
 
-`hub.peers.on(type, handler)` registers more types, optionally for one peer name. A named handler replaces the global one for that name. The handler is `async (peer, frame)` and returns the same kinds of values as a module handler: a dict (ack), `False` (nack), a `Frame`, or `ANSWERED`.
+## Custom handlers
 
-`hub.peers["server"]` is the live `Peer` after hello. Sending before ready is dropped and logged.
+A ready peer sends a frame with `send()`. The other hub looks up `frame.type` and runs the handler from `peers.on`. The handler's return value is the reply `send()` is waiting for. This is the same request and reply shape as a module control message, on a `Frame` instead of an ipc-lib `Message`.
+
+```python
+from hub.peers import Frame
+
+async def on_ping(peer, frame):
+    return {"from": peer.name, "n": (frame.data or {}).get("n")}
+
+hub.peers.on("ping", on_ping)                    # every peer
+hub.peers.on("ping", on_ping, name="client")     # this name wins
+```
+
+```python
+# on the other hub, after hello
+reply = await hub.peers["server"].send(Frame(type="ping", data={"n": 1}))
+```
+
+```text
+peers["server"].send(Frame type=ping)
+        │
+        ▼
+remote hub.peers.on("ping")  →  handler(peer, frame)
+        │
+        ▼
+ack / nack / reply           →  the Frame send() returns
+```
+
+A handler is `async (peer, frame)`. Return a dict to ack with that data, `False` to nack, a `Frame` to send as the reply, or `ANSWERED` if the handler already wrote the reply. An unknown type is nacked with `unhandled`. A handler that raises is nacked with the exception text. `send()` returns `None` on timeout (5 seconds) or when that peer is not `ready`.
+
+`hub.peers["server"]` is the live `Peer` after hello. Sending before ready is dropped and logged. The only built-in type is `hello`. Registering `on` for `hello` replaces that handshake for the peers it covers.
