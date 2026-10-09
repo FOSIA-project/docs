@@ -10,7 +10,7 @@ module.yaml + config.yaml
         ▼
    Module.run()
         │
-        ├── on_init()          load models, once per connection
+        ├── on_init(...)       load models, once per connection; ctor extras forwarded
         ├── register           control socket to the hub
         ├── listen             only if the hub says this module is not the source
         ├── on_run()           background task; default awaits ready()
@@ -63,7 +63,7 @@ class Wakeword(Module):
     async def on_data(self, msg, session):
         ...
 
-asyncio.run(Wakeword("wakeword.yaml", "config.yaml").run())
+asyncio.run(Wakeword(manifest_path="wakeword.yaml", config_path="config.yaml").run())
 ```
 
 `run()` connects, starts `on_run` as a background task, and waits on the control read loop. If the hub socket drops it clears local session state and connects again. `stop()` closes data sockets, drops sessions, disconnects, and calls `on_stop()`.
@@ -74,7 +74,7 @@ The control connection retries on its own, from 0.2 seconds up to 5 seconds, unt
 
 | Hook | When it runs | Default |
 | --- | --- | --- |
-| `on_init` | Once before register, each time the control connection comes up | returns `True` |
+| `on_init(*args, **kwargs)` | Once before register, each time the control connection comes up. Positional/`**kwargs` on `Module(...)` are forwarded here; `manifest_path` / `config_path` are keyword-only | returns `True` |
 | `on_run` | Background task after register, beside the control read loop | awaits `ready()` |
 | `on_ready` | Awaited by `ready()`, before the `ready` message is sent | returns `True` |
 | `on_data(msg, session)` | One inbound data frame, after the local ready flag is set | logs the frame |

@@ -103,8 +103,8 @@ A frame whose `session_id` was never announced is dropped. `on_data` is not call
 
 ```python
 class Stt(Module):
-    async def on_init(self):
-        self.model = load_model()
+    async def on_init(self, model_path=None):
+        self.model = load_model(model_path)
         return True
 
     async def on_run(self):
@@ -119,7 +119,12 @@ class Stt(Module):
     async def on_stop(self):
         self.model.close()
         return True
+
+asyncio.run(Stt("/models/stt").run())
+# or: Stt(model_path="/models/stt", manifest_path="stt.yaml", config_path="config.yaml")
 ```
+
+Positional and keyword constructor args go to `on_init`; `manifest_path` / `config_path` are keyword-only (defaults `module.yaml` / `config.yaml`), so init parameters do not require overriding `__init__`.
 
 `run()` starts `on_run` as a background task and waits on the control loop. `ready()` awaits `on_ready()` inside that task before the module is marked ready. The `await asyncio.Event().wait()` above keeps the background task alive after `ready()` returns. Work that must finish before the hub is told this module is ready belongs in `on_ready`.
 
