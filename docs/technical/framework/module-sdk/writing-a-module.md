@@ -7,10 +7,10 @@ Three roles cover a normal voice pipeline.
 | Role | Hub position | What you send | What you receive |
 | --- | --- | --- | --- |
 | Source | First chain name | `fanout_data` when chain mode puts this hop before the session creator. Otherwise `put_data` on a session this hop creates | Nothing. No listen socket, so `on_data` does not run |
-| Session creator | The row with `session-creator: true` when `hub.chain` is true. Any ready module except audio-transmission when chain mode is off | `create_session()`, then `put_data` on that handle | Upstream frames. `on_data`'s `session` is `None` when the previous hop fans out |
+| Session creator | The row with `session-creator: true` when `hub.chain` is true (if none, the hub is the creator and modules cannot open sessions). Any ready module except audio-transmission when chain mode is off | `create_session()`, then `put_data` on that handle | Upstream frames. `on_data`'s `session` is `None` when the previous hop fans out |
 | Downstream | At or after the creator, not the one opening the id | `session.put_data` to forward, or nothing if this hop consumes the frame | `on_data(msg, session)` with this hop's next dest |
 
-Fan-out hops that sit between the source and the creator (chain mode, `id` lower than the creator) listen, and they emit with `fanout_data`. They cannot call `create_session()`. Only the creator id is allowed to open a session.
+Fan-out hops that sit between the source and a module creator (chain mode, `id` lower than the creator) listen, and they emit with `fanout_data`. They cannot call `create_session()`. Only the creator id is allowed to open a session. If no module sets `session-creator`, the hub is the creator: there is no fan-out, and every module `create_session()` is rejected.
 
 ## Source
 
@@ -43,7 +43,7 @@ class Vad(Module):
 
 ## Session creator
 
-By default, wake word (WWD) is the session creator. Another module takes that role when its hub row is the one with `session-creator: true`.
+When a hub row sets `session-creator: true`, that id is the creator (sample configs often use wake word). If no row sets it, the hub is the creator and modules cannot call `create_session()`.
 
 `create_session()` does not return until every other ready session module has acked the new id. The returned `Session` is **this** module's next hop.
 

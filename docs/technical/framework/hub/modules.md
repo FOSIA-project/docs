@@ -18,7 +18,7 @@ On `register` the hub reads `name` and rejects a second live connection with the
 
 The hub then:
 
-1. Acks immediately with `{ok, name, buffer, listen, fanout}`. `listen` is true for every non-source. `fanout` is true in chain mode for ids below the session creator. `buffer` is the value from hub config.
+1. Acks immediately with `{ok, name, buffer, listen, fanout}`. `listen` is true for every non-source. `fanout` is true in chain mode for ids below a module session creator. When no module is flagged, the hub is the creator and `fanout` is false for every chain module. `buffer` is the value from hub config.
 2. Syncs existing session ids to this module, before it is listening.
 3. If it must listen, sends `listen` and waits for that ack (5 seconds). The address in the ack is stored as `module.dest`.
 4. Publishes dests again so the previous hop can see the new address.
@@ -46,7 +46,7 @@ session_id → { name, dests, active, finished }
 
 The same id is used on every hop. Each module is told only its own next dest for that id.
 
-By default, wake word is the session creator. VAD sits between the source and that creator, so it receives `add-dests` and never sees the session map. Another row can be the creator when it is the one flagged `session-creator: true`.
+When a chain row is flagged `session-creator: true`, that id is the creator. Modules below it (for example VAD when wake word is the creator) receive `add-dests` and never see the session map. When no row is flagged, the hub is the creator: every chain module receives `add-sessions` from the first, and there is no fan-out.
 
 ```text
 add-dests to audio-in:     [ <vad listen> ]
@@ -59,7 +59,7 @@ Fan-out modules are not in the session map. They receive `add-dests`: a de-dupli
 
 ## create-session
 
-The caller must be `ready`. In chain mode it must also share the session-creator id. Otherwise the request is nacked. Audio-transmission modules are nacked in either mode.
+The caller must be `ready`. In chain mode it must also share the session-creator id. Otherwise the request is nacked. When no module is flagged, the hub is the creator and every module `create-session` is nacked (create and announce from the control plane instead). Audio-transmission modules are nacked in either mode.
 
 The hub allocates an id, records the creator, then announces that id to **every other ready session module** and waits for each ack (5 seconds). Fan-out modules are skipped. Only then does the creator receive `{session_id, dest}`.
 

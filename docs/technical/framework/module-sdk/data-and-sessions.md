@@ -2,7 +2,7 @@
 
 Control messages and data frames are different sockets. A session id is how those data frames stay on one route. It is not a connection, and it is not the conversation object used above the pipeline.
 
-Fan-out hops do not hold a `Session`. In the usual chain that is audio-in and VAD: both sit before wake word, and both emit with no `session_id`. From the session creator onward, each module holds its own `Session` for the same id. `session.dest` is **this** module's next hop. By default that creator is wake word.
+Fan-out hops do not hold a `Session`. When a module is the session creator (often wake word in sample configs), hops before that id — typically audio-in and VAD — emit with no `session_id`. From the creator onward, each module holds its own `Session` for the same id. `session.dest` is **this** module's next hop. When no module is flagged `session-creator`, the hub is the creator: there is no fan-out, and every chain module gets sessions.
 
 Modules between the source and the creator might set flow events on those frames (`flow_id` and `data["event"]`).
 
@@ -15,7 +15,7 @@ no session_id         fanout_data(pcm)       dest = stt's listen addr    dest = 
 
 ## Fan-out
 
-Chain mode gives every module below the session-creator id an `add-dests` list. `fanout_data` connects to each address and sends the frame with no `session_id`. Connections are cached and replaced when the list changes.
+When chain mode has a module session creator, every module below that id gets an `add-dests` list. `fanout_data` connects to each address and sends the frame with no `session_id`. Connections are cached and replaced when the list changes. If the hub is the creator (no `session-creator` flag), there is no fan-out list.
 
 ```python
 await self.fanout_data(pcm_chunk)

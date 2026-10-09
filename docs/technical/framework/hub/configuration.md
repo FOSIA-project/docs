@@ -1,6 +1,6 @@
 # Configuration
 
-The hub reads one YAML file. `parse_config` checks names, sorts the chain, and rejects a chain-mode file that does not name exactly one session-creator id.
+The hub reads one YAML file. `parse_config` checks names, sorts the chain, and in chain mode rejects a file that names more than one distinct session-creator id.
 
 `modules` may be a list, which is the chain, or a mapping:
 
@@ -45,7 +45,7 @@ A bare list is accepted too. After parsing, `modules` is always the chain list a
 | `hub.chain` | hub | `true` selects chain mode. Omitted or `false` means every module uses sessions |
 | `id` | chain row | Sort key. Also compared with the session-creator id |
 | `name` | any module row | Unique across the chain and `audio-transmission`. A duplicate is a startup error |
-| `session-creator` | chain row | In chain mode, exactly one distinct `id` may set this. Several rows may share that id |
+| `session-creator` | chain row | Optional in chain mode. At most one distinct `id` may set this. Several rows may share that id. If none set it, the hub is the creator |
 | `where` | chain row | Placement label. A missing value counts as `local` |
 | `buffer` | any module row | Copied onto the register ack. The module keeps frames for replay only when this is true |
 | `priority` | audio-transmission row | Try order. Lowest number first. Missing priorities sort last |
@@ -56,16 +56,25 @@ Sample configs also carry `when` and a chain-row `priority`. The running control
 
 ## Chain mode
 
-`hub.chain: true` requires `session-creator: true` on modules that share a single `id`. Zero creator ids, or two different ones, fail at startup. A creator row must have an `id`.
+`hub.chain: true` may set `session-creator: true` on modules that share a single `id`. Two different creator ids fail at startup. A creator row must have an `id`. If no module sets `session-creator`, the hub is the creator: no fan-out, every chain module receives `add-sessions`, and module `create-session` is nacked (create and announce from the control plane instead).
 
 ```text
 id 1  audio-in     source, fan-out     no listen socket
 id 2  vad          fan-out             listens, sends with no session_id
-id 3  wakeword     session-creator     default creator; listens, may create-session
+id 3  wakeword     session-creator     listens, may create-session
 id 4  stt          session module      listens, reuses inbound session ids
 ```
 
-Only modules whose `id` equals the creator id may send `create-session`. Modules with a lower id receive `add-dests` and do not take part in session announce. Modules at or after that id receive `add-sessions`.
+With a module creator, only modules whose `id` equals the creator id may send `create-session`. Modules with a lower id receive `add-dests` and do not take part in session announce. Modules at or after that id receive `add-sessions`.
+
+With the hub as creator (no `session-creator` flag):
+
+```text
+id 1  audio-in     source, session     no listen socket; gets add-sessions
+id 2  vad          session module      listens, gets add-sessions
+id 3  wakeword     session module      listens, gets add-sessions
+id 4  stt          session module      listens, gets add-sessions
+```
 
 Audio-transmission rows are not chain rows. They have no `id`, they are not the source, they are not session creators, and they do not fan out.
 

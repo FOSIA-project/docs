@@ -75,8 +75,8 @@ The source does not open a data listen socket, and the hub never stores a dest f
 
 With `hub.chain: true`, position relative to the session creator also decides how a module sends:
 
-- Modules whose `id` is below the session-creator id **fan out**. They receive a list of next-hop addresses and emit frames with no `session_id`.
-- The session creator and every later module use **sessions**. Later modules receive `add-sessions` entries `{session_id: {dest: next hop}}`. The creator learns its next hop from the `create-session` ack `{session_id, dest}`.
+- When a module id is flagged `session-creator`, modules whose `id` is below that id **fan out**. They receive a list of next-hop addresses and emit frames with no `session_id`. The creator and every later module use **sessions**. Later modules receive `add-sessions` entries `{session_id: {dest: next hop}}`. The creator learns its next hop from the `create-session` ack `{session_id, dest}`.
+- When no module is flagged, the hub is the creator: no fan-out, every chain module gets `add-sessions` from the first, and module `create-session` is nacked.
 
 With `hub.chain: false` (the default), every module uses sessions. Any ready module may create one, except an audio-transmission row. See [Modules and sessions](modules.md).
 
