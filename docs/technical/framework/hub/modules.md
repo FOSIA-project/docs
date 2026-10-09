@@ -32,16 +32,17 @@ That order is what makes a late join safe. The new module learns session ids fir
 A session is a **routing id**, not a socket and not a user conversation. The hub allocates it with `create-session` and stores:
 
 ```text
-session_id → { name, dests, active, finished }
+session_id → { name, dests, active, finished, allowed_modules? }
 ```
 
 
-| Field      | Meaning                                                                 |
-| ---------- | ----------------------------------------------------------------------- |
-| `name`     | Module that created it                                                  |
-| `dests`    | Optional per-module next-hop overrides                                  |
-| `active`   | Last module that sent `active-session` (first inbound data on that hop) |
-| `finished` | Modules that sent `finish-session`                                      |
+| Field              | Meaning                                                                 |
+| ------------------ | ----------------------------------------------------------------------- |
+| `name`             | Module that created it                                                  |
+| `dests`            | Optional per-module next-hop overrides                                  |
+| `active`           | Last module that sent `active-session` (first inbound data on that hop) |
+| `finished`         | Modules that sent `finish-session`                                      |
+| `allowed_modules`  | Optional ACL: only these names receive `add-sessions` for this id. Missing/`None` means every session module (default `create-session` behavior). Set by control-plane `open_session(modules=...)`. |
 
 
 The same id is used on every hop. Each module is told only its own next dest for that id.
@@ -69,11 +70,42 @@ If any announce fails or times out, the hub removes the session and nacks the cr
 
 If nobody else is ready, announce is a no-op and the creator is acked immediately. `dest` may still be `None`.
 
+## open_session (control plane)
+
+When the hub (or an app) creates a session without a module `create-session` call:
+
+```python
+ok = await hub.open_session(
+    session_id,
+    name="client",                 # recorded creator / owner
+    user_id="client",              # optional
+    modules=["stt-whisper"],       # optional ACL + dest chain order
+    sink_dest="unix:///run/fosia/server.return.sock",  # last hop dest
+    announce=True,
+)
+```
+
+- Inserts the session row. Returns `False` if the id already exists or announce fails (failed announce removes the row).
+- If `modules` is set: stores `allowed_modules`, sets each hop’s dest to the next module’s live listen address, and the last hop to `sink_dest`.
+- If `announce` is true: calls `announce_sessions` with `only_modules=modules` when `modules` was set, otherwise announces to every ready session module.
+
+### announce_sessions
+
+```python
+await hub.modules.announce_sessions(
+    [session_id],
+    skip_modules=["wakeword"],     # ignored when only_modules is set
+    only_modules=["stt-whisper"],  # notify only this set
+)
+```
+
+Late register sync (`sync_sessions`), `publish_session_dests`, `remove_session`, and `delete_data` all honor `allowed_modules`: a module that is not on the list does not receive that session id.
+
 ## Finish, remove, disconnect
 
 `finish-session` adds the sender to `finished`. The session stays. Downstream can still use the id, and `put_data` still works until the hub removes it.
 
-`remove_session(session_id)` deletes the row and sends `remove-session` to the remaining session modules.
+`remove_session(session_id)` deletes the row and sends `remove-session` to the remaining session modules (or only `allowed_modules` when that ACL is set).
 
 `delete_data(session_id)` tells those modules to drop buffered frames and close the data connection for that id. The id itself stays.
 
@@ -111,6 +143,20 @@ ack / nack / reply      →  the Message send() returns
 A handler is `async (module, msg)`. Return a dict to ack with that data, `False` to nack, a `Message` to send as the reply, or `ANSWERED` if the handler already wrote the reply. An unknown type is nacked with `unhandled`. A handler that raises is nacked with the exception text. `send()` returns `None` on timeout (5 seconds) or when the module is not `ready`.
 
 Built-in types are `register`, `ready`, `create-session`, `active-session`, and `finish-session`. Registering `on` for one of those types replaces that built-in for the modules it covers. The module side of `send()` is in [Sending to a hub handler](../module-sdk/index.md#sending-to-a-hub-handler).
+
+### after hooks
+
+`hub.modules.after(type, hook)` registers an observer. It runs after the primary handler returns and before the reply is written. The hook is `async (module, msg, result)`. It must not change the reply; exceptions are logged and the reply is still sent.
+
+```python
+async def after_create(module, msg, result):
+    if isinstance(result, Message) and result.type == "ack":
+        asyncio.create_task(sync_elsewhere(result.data["session_id"]))
+
+hub.modules.after("create-session", after_create)
+```
+
+Use `after` for side effects. Use `on` when you need to replace the handler.
 
 ## Sending to a module
 
