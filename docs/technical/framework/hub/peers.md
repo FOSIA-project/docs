@@ -99,7 +99,10 @@ async def on_ping(peer, frame):
 
 hub.peers.on("ping", on_ping)                    # every peer
 hub.peers.on("ping", on_ping, name="client")     # this name wins
+hub.peers.on("webrtc-tunnel-*", on_tunnel)       # prefix match
 ```
+
+A type ending in `*` is a **prefix pattern** (same lookup rules as module handlers: exact before prefix, longest prefix wins, named before global).
 
 ```python
 # on the other hub, after hello

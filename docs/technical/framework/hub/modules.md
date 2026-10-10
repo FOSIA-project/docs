@@ -123,6 +123,7 @@ async def on_ping(module, msg):
 
 hub.modules.on("ping", on_ping)                        # every module
 hub.modules.on("ping", on_ping, name="wakeword")       # this name wins
+hub.modules.on("webrtc-tunnel-*", on_tunnel)           # prefix: webrtc-tunnel-offer, …
 ```
 
 ```python
@@ -142,11 +143,13 @@ ack / nack / reply      →  the Message send() returns
 
 A handler is `async (module, msg)`. Return a dict to ack with that data, `False` to nack, a `Message` to send as the reply, or `ANSWERED` if the handler already wrote the reply. An unknown type is nacked with `unhandled`. A handler that raises is nacked with the exception text. `send()` returns `None` on timeout (5 seconds) or when the module is not `ready`.
 
+A type ending in `*` is a **prefix pattern**. Lookup order: exact named → exact global → longest matching prefix named → longest matching prefix global. Exact always beats prefix.
+
 Built-in types are `register`, `ready`, `create-session`, `active-session`, and `finish-session`. Registering `on` for one of those types replaces that built-in for the modules it covers. The module side of `send()` is in [Sending to a hub handler](../module-sdk/index.md#sending-to-a-hub-handler).
 
 ### after hooks
 
-`hub.modules.after(type, hook)` registers an observer. It runs after the primary handler returns and before the reply is written. The hook is `async (module, msg, result)`. It must not change the reply; exceptions are logged and the reply is still sent.
+`hub.modules.after(type, hook)` registers an observer. It runs after the primary handler returns and before the reply is written. The hook is `async (module, msg, result)`. It must not change the reply; exceptions are logged and the reply is still sent. `type` may be exact or a `prefix*` pattern (exact hooks run first, then matching prefixes longest-first).
 
 ```python
 async def after_create(module, msg, result):
