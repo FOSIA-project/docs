@@ -49,6 +49,11 @@ nav:
              - Writing a module: technical/framework/module-sdk/writing-a-module.md
              - Data and sessions: technical/framework/module-sdk/data-and-sessions.md
 
+     - Apps:
+         - Overview: technical/apps/index.md
+         - Client: technical/apps/client.md
+         - Server: technical/apps/server.md
+
      - Client:
          - Overview: technical/client/index.md
          - Microphone: technical/client/microphone.md

@@ -12,6 +12,8 @@ The software documentation is divided into Client and Server depending on where 
 
 The [Hub](framework/hub/index.md) and [Module SDK](framework/module-sdk/index.md) pages describe the pipeline control plane and the hooks a new module implements.
 
+The [Client and server apps](apps/index.md) pages describe the Hub processes that glue device and cloud: module announce, session sync, text return, and control tunnels.
+
 The [Error Handling](error-handling/index.md) section documents how FOSIA reacts to different types of errors and exceptional situations.
 
 The [Testing](testing/index.md) section contains documentation and results of various test performed on the system.
