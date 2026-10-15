@@ -56,7 +56,7 @@ modules:
       where: local
       tunnel:
         - to: webrtc-client
-          on: client
+          peer: client
           type: webrtc-tunnel-*
     - id: 2
       name: stt-whisper
@@ -140,7 +140,7 @@ Fire-and-forget on the peer side (`notify`, not `send`).
 ```yaml
 tunnel:
   - to: webrtc-client
-    on: client
+    peer: client
     type: webrtc-tunnel-*
 ```
 

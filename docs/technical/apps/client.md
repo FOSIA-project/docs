@@ -71,7 +71,7 @@ modules:
       where: local
       tunnel:
         - to: webrtc-server   # remote module name
-          on: server          # peer hub name
+          peer: server        # peer hub name
           type: webrtc-tunnel-*
 ```
 
@@ -132,7 +132,7 @@ For each module row with:
 ```yaml
 tunnel:
   - to: <remote module>
-    on: <peer name>
+    peer: <peer name>
     type: <exact or prefix*>
 ```
 
@@ -141,7 +141,7 @@ installs:
 | Direction | Registration | Behavior |
 | --- | --- | --- |
 | Outbound | `hub.modules.on(pattern, …, name=local)` | Module `send` → `peer.send(Frame)` → map reply to `Message` |
-| Inbound | `hub.peers.on(pattern, …)` (once per pattern) | Frame → `hub.modules[target].send(Message)` if this local module declared `on: <that peer>` |
+| Inbound | `hub.peers.on(pattern, …)` (once per pattern) | Frame → `hub.modules[target].send(Message)` if this local module declared `peer: <that peer>` |
 
 Frame envelope (JSON; optional binary as `payload_b64`):
 
