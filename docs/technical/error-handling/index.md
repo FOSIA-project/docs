@@ -1,213 +1,65 @@
 # Error Handling
 
-FOSIA handles errors explicitly to prevent communication failures from causing an uncontrolled application termination. The following table provides an overview of the currently considered error cases and their handling status.
+This page documents the error handling implemented in the current FOSIA modules. The modules run as part of a Hub-managed pipeline. The Hub and Module SDK provide module registration, readiness, routing and control-message delivery, while the modules handle microphone capture, WebRTC communication, audio processing and speech recognition.
 
-## Error Cases
+For details about the framework, see the [Hub documentation](https://docs.fosia.org/en/latest/technical/framework/hub/) and the [Module SDK documentation](https://docs.fosia.org/en/latest/technical/framework/module-sdk/writing-a-module/).
 
-| Side   | Category  | Error Case                                                                                          | Handling                        | Tested |
-| ------ | --------- | --------------------------------------------------------------------------------------------------- | ------------------------------- | ------ |
-| Client | Signaling | [Signaling server unreachable during offer](#signaling-server-unreachable-during-offer)             | 3 retries, then abort           | ✅      |
-| Client | Signaling | [No answer received](#no-answer-received)                                                           | 30 s timeout                    | ✅      |
-| Client | Signaling | [Signaling connection lost during answer polling](#signaling-connection-lost-during-answer-polling) | Continue polling until timeout  | ✅      |
-| Client | WebRTC | [Invalid SDP answer](#invalid-sdp-answer) | Validate response and SDP; abort on invalid data | ✅ |
+## Current error-case overview
 
----
+| Module | Error case | Current behavior | Recovery |
+|---|---|---|---|
+| Microphone | PortAudio fails during startup | Attempts to start audio capture using `parec` as a PulseAudio fallback. | Automatic fallback if `parec` is available and can start successfully. |
+| Microphone | `parec` is unavailable | Raises a descriptive `RuntimeError`. | Install or configure the required audio capture backend. |
+| Microphone | PulseAudio capture fails | Reports the error using process output or the exit code. | Check the audio source and PulseAudio configuration. |
+| Microphone | `parec` stops during capture | Raises a `RuntimeError`. | The capture process must be restarted; no automatic restart is implemented. |
+| Microphone | Audio callback reports a status message | Logs the status. | Capture continues unless the stream itself fails. |
+| Microphone | No downstream destination is available | Logs a warning when audio cannot be forwarded. | Check module readiness and Hub routing configuration. |
+| WebRTC client | Hub reply is missing `sdp` or `type` | Logs an error and stops the current run. | Check the request/reply exchange and returned message. |
+| WebRTC client | Hub reply is not an SDP answer | Logs an error and stops the current run. | Check the receiver's control-message handler. |
+| WebRTC client | Applying the remote SDP fails | Logs the exception and exits the current run. | Check the SDP exchange and WebRTC negotiation. |
+| WebRTC client | Audio track ends | Logs the end of the stream and closes the peer connection. | Normal stream termination and cleanup. |
+| WebRTC client | Connection state changes or fails | Logs connection-state changes. | No complete automatic reconnection or renegotiation strategy is implemented. |
+| Receiver | Audio-frame conversion fails | Logs and re-raises the conversion error. | The receive loop handles the error and performs cleanup. |
+| Receiver | Unexpected receive-loop error | Logs the exception and runs cleanup. | The outer loop attempts to continue where possible. |
+| Receiver | No downstream destination is available | Logs a warning when audio cannot be forwarded. | Check module readiness and Hub routing configuration. |
+| Receiver | Audio stream ends | Attempts to flush buffered audio processing and sends `EOS` downstream. | Normal stream termination. |
+| STT | Configured test audio file is missing | Raises `FileNotFoundError`. | Restore the file or disable file-based test mode. |
+| STT | Google Speech-to-Text API raises an error | The error propagates through the module runtime; no dedicated retry policy is implemented. | Inspect the API error, credentials, network connection and request configuration. |
+| STT | `EOS` is received | Processes the remaining partial audio bytes and queues an end marker for the request stream. | Normal termination of the recognition request. |
 
-## Client
+## Lifecycle and cleanup
 
-### Signaling
+### Microphone
 
-#### Signaling Server Unreachable During Offer
+The microphone module waits for the selected capture backend to start. If PortAudio fails during startup, it attempts to use `parec` as a fallback. During shutdown, the module signals the capture tasks to stop, terminates the fallback process if necessary, sends `EOS` downstream and waits for the recording and forwarding tasks to finish.
 
-The client retries the offer request up to three times if the signaling server cannot be reached.
+### WebRTC client
 
-Each request has a timeout of five seconds. A one-second delay is used between attempts. If all attempts fail, the connection attempt is aborted and the `RTCPeerConnection` is closed during cleanup.
+The client sends a `webrtc-tunnel-offer` message through the Hub and validates the returned SDP answer before applying it to the peer connection. Its `finally` block closes the `RTCPeerConnection`, including when negotiation fails or the reply is invalid. Connection-state changes are logged, but automatic reconnection and renegotiation are not fully implemented.
 
-```python
-MAX_RETRIES = 3
+### Receiver
 
-for attempt in range(1, MAX_RETRIES + 1):
-    try:
-        r = requests.post(
-            SIGNALING + "/offer",
-            json={
-                "sdp": pc.localDescription.sdp,
-                "type": pc.localDescription.type
-            },
-            timeout=5
-        )
+The receiver processes incoming WebRTC audio, converts it to mono, 16 kHz signed 16-bit PCM and forwards the resulting audio data downstream. When the stream ends or an error occurs, it attempts to flush buffered audio processing, close the recording container and send `EOS` downstream. Some cleanup exceptions are suppressed.
 
-        r.raise_for_status()
-        break
+### Speech-to-Text
 
-    except requests.exceptions.RequestException as e:
-        logger.warning(
-            f"Could not reach signaling server "
-            f"(attempt {attempt}/{MAX_RETRIES}): {e}"
-        )
+The STT module consumes PCM audio data and streams it to Google Speech-to-Text. When `EOS` arrives, it flushes the remaining partial audio chunk and terminates the request stream. There is no explicit retry or backoff strategy for Google API errors.
 
-        if attempt == MAX_RETRIES:
-            logger.error("Signaling server not reachable")
-            return
+## Known implementation limitations
 
-        await asyncio.sleep(1)
-```
+The following limitations are relevant when operating or testing the current modules:
 
-Test result:
+1. **WebRTC recovery:** Connection-state changes are logged, but a complete automatic reconnection and renegotiation strategy is not implemented.
+2. **Google API recovery:** Speech-to-Text errors do not have a dedicated retry or backoff mechanism.
+3. **STT test mode:** The file-based test path currently yields PyAV `AudioFrame` objects, although the request generator expects audio bytes. The module also waits for data on the live audio queue. File-based testing should be corrected before relying on it.
+4. **Cleanup visibility:** Some receiver cleanup exceptions are suppressed and may therefore not appear in the logs.
+5. **Module readiness:** Starting a process does not necessarily mean that its module has registered with the Hub and is ready to receive data.
 
-```text
-Could not reach signaling server (attempt 1/3)
-Could not reach signaling server (attempt 2/3)
-Could not reach signaling server (attempt 3/3)
-ERROR - Signaling server not reachable
-Closing PeerConnection
-PeerConnection closed, exiting...
-```
+## Troubleshooting
 
-#### No Answer Received
+- **No microphone audio:** Check `MIC` logs for capture startup, PortAudio errors and fallback messages.
+- **WebRTC negotiation fails:** Check `CLIENT` logs and the receiver's Hub control-message handler.
+- **No audio reaches the server:** Check WebRTC connection-state logs, receiver track handling and Hub routing.
+- **No transcript is produced:** Check receiver forwarding, `EOS` delivery, the `STT` logs and Google API configuration.
 
-After sending the offer, the client polls the signaling server for an SDP answer.
-
-If no answer is available yet, the signaling server returns an empty JSON object:
-
-```json
-{}
-```
-
-This is not treated as an error. The client continues polling once per second.
-
-An overall timeout of 30 seconds prevents the client from waiting indefinitely. If no answer is received within this period, the connection attempt is aborted.
-
-Test result:
-
-```text
-Polling answer: {}
-Polling answer: {}
-Polling answer: {}
-...
-ERROR - Signaling Server connection timed out
-Closing PeerConnection
-PeerConnection closed, exiting...
-```
-
-#### Signaling Connection Lost During Answer Polling
-
-The signaling server can become unavailable while the client is waiting for the answer.
-
-Network and HTTP request errors are caught and logged as warnings. The client continues polling instead of immediately aborting the connection attempt.
-
-The overall 30-second answer timeout remains active. Therefore, temporary connection problems can be tolerated, while a permanently unavailable signaling server eventually causes a timeout.
-
-Relevant code:
-
-```python
-except requests.exceptions.RequestException as e:
-    logger.warning(
-        f"Connection to signaling server lost: {e}"
-    )
-```
-
-Test result:
-
-```text
-Polling answer: {}
-Polling answer: {}
-
-WARNING - Connection to signaling server lost: ...
-
-Polling answer: {}
-Polling answer: {}
-
-ERROR - Signaling Server connection timed out
-Closing PeerConnection
-PeerConnection closed, exiting...
-```
-
-### WebRTC
-
-#### Invalid SDP Answer
-
-The client validates the SDP answer received from the signaling server before applying it as the remote description.
-
-First, the response is checked for the required `sdp` and `type` fields. The answer type must also be `"answer"`. If any of these checks fail, the connection attempt is aborted.
-
-If the answer passes the initial validation, the SDP is passed to `aiortc` using `setRemoteDescription()`. If the SDP is invalid or incompatible with the previously created offer, `aiortc` raises an exception. The exception is caught, logged, and the connection attempt is aborted.
-
-No further request for the same answer is made in these cases. Since the signaling server successfully delivered an answer, retrying the request would normally return the same invalid data. Retries are therefore only used for communication errors during answer polling.
-
-In all cases, the `RTCPeerConnection` is closed during cleanup.
-
-Relevant code:
-
-```python
-# Check if answer has all required fields
-if not data or "sdp" not in data or "type" not in data:
-    logger.error("Invalid answer from signaling server")
-    return
-
-# Check if answer is of type "answer"
-if data["type"] != "answer":
-    logger.error(
-        f"Invalid SDP answer type from signaling server: {data['type']}"
-    )
-    return
-
-try:
-    await pc.setRemoteDescription(
-        RTCSessionDescription(
-            sdp=data["sdp"],
-            type=data["type"]
-        )
-    )
-except Exception as e:
-    logger.exception(f"Failed to set remote description: {e}")
-    return
-```
-*Test Results*
-
-Test 1 – Missing type:
-```
- INFO - [CLIENT] - Valid Polling Answer received
- INFO - [CLIENT] - Setting remote description...
- ERROR - [CLIENT] - Invalid answer from signaling server
- INFO - [CLIENT] - Closing PeerConnection
- INFO - [CLIENT] - PeerConnection closed, exiting...
-```
-The missing type field was detected by the client-side validation before the answer was passed to aiortc.
-
-Test 2 – Invalid SDP:
-```
- INFO - [CLIENT] - Valid Polling Answer received
- INFO - [CLIENT] - Setting remote description...
- ERROR - [CLIENT] - Failed to set remote description: Media sections in answer do not match offer
- INFO - [CLIENT] - Closing PeerConnection
- INFO - [CLIENT] - PeerConnection closed, exiting...
-```
-The SDP passed the initial validation but was rejected by aiortc because its media sections did not match the offer.
-
-Test 3 – Invalid answer type:
-```
- INFO - [CLIENT] - Valid Polling Answer received
- INFO - [CLIENT] - Setting remote description...
- ERROR - [CLIENT] - Invalid SDP answer type from signaling server: blubu
- INFO - [CLIENT] - Closing PeerConnection
- INFO - [CLIENT] - PeerConnection closed, exiting...
-```
-The invalid answer type was detected by the client-side validation before creating the RTCSessionDescription.
-
-All three test cases resulted in a controlled termination and proper RTCPeerConnection cleanup.
-### Audio
-
-### Lifecycle
-
-
-
-## Server
-
-### Signaling
-
-### WebRTC
-
-### Audio
-
-### STT
+Only document retries, timeouts or automatic recovery when the current implementation actually provides them.

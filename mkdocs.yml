@@ -54,16 +54,16 @@ nav:
              - Writing a module: technical/framework/module-sdk/writing-a-module.md
              - Data and sessions: technical/framework/module-sdk/data-and-sessions.md
 
-     - Client:
+     - Client modules:
          - Overview: technical/client/index.md
          - Microphone: technical/client/microphone.md
          - Wake Word Detection: technical/client/wwd.md
 
      - Communication:
          - Overview: technical/communication/index.md
-         - Signaling: technical/communication/signaling.md
+         - Framework tunnels: technical/communication/signaling.md
          - WebRTC: technical/communication/webrtc.md
-     - Server:
+     - Server modules:
          - Overview: technical/server/index.md
          - Speech-to-Text (Google): technical/server/stt.md
 
@@ -71,6 +71,7 @@ nav:
          - Error Handling: technical/error-handling/index.md
 
      - Testing:
-         - Overview: technical/testing/index.md
+         - Initial Timing Analysis: technical/testing/index.md
+         - Second Timing Analysis: technical/testing/second-timing-analysis.md
 
      
